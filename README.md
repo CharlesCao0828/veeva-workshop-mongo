@@ -159,3 +159,100 @@ helm install mongodb helm_chart \
 ```
 kubectl get pod -n mongodb 
 ```
+### 步骤二、部署OpsManager实例
+OpsManager可以为用户提供友好的图形化界面，高效地对多个MongoDB集群进行集中的管理、监控，同时实现一些高级的功能，如查询分析、性能优化以及备份和快照等。
+在MongoDB Enterprise Operator的方案中，MongoDB Enterprise Operator首先会创建OpsManager应用实例，待实例创建成功之后，用户可以登录OpsManager进行查看。MongoDB Enterprise Operator为OpsManager自动创建多节点的MongoDB集群（OpsManager Applicaton Database），用于存放OpsManager的相关数据，此外，MongoDB Enterprise Operator支持OpsManager的集群化部署，用户可以根据实际应用场景灵活地设置OpsManager实例的部署数量。
+#### 2.1、下载github连接。
+
+#### 2.2、设置“kubectl context”信息，让kubectl默认工作在“mongodb”命名空间下。
+```
+kubectl config set-context $(kubectl config current-context) --namespace=mongodb
+```
+#### 2.3、创建Kubernetes Secret，新创建的两个Secret用于存放OpsManager用户名和密码，以及OpsManager Applicaton Database密码。当OpsManager成功创建后，用户可通过OpsManager的用户名和密码登录并OpsManager，可通过OpsManager Application Database的密码对OpsManager的Databse进行维护。
+```
+# 存放OpsManager用户名密码
+kubectl create secret generic om-admin-secret \
+--from-literal=Username=admin \
+--from-literal=Password=Admin@123 \
+--from-literal=FirstName=San \
+--from-literal=LastName=Zhang
+# 存放OpsManager Applicaton Database
+kubectl create secret generic om-db-user-secret \
+--from-literal=password=Admin@12345
+```
+#### 2.4、通过OpsManager yaml配置文件创建OpsManager实例。若需要进一步定制化配置OpsManager，请查看详细配置 (https://docs.mongodb.com/kubernetes-operator/master/reference/k8s-operator-om-specification/)。
+```
+kubectl apply -f kubernetes/mongodb-ops-manager.yml
+```
+#### 2.5、查看Kubernetes资源创建信息与OpsManager部署状态。
+```
+## 查看Kubernetes pvc创建状态（OpsManager Applicaton Database存储卷）
+kubectl get pvc
+## 查看pod创建状态（OpsManager应用实例）
+kubectl get pod 
+## 查看OpsManager状态
+kubectl get om mongodb-ops-manager -o yaml
+## 查看Kubernetes service
+kubectl get svc
+```
+### 步骤三、部署类型为Standalone的MongoDB实例
+#### 3.5、创建Kubernetes Secret
+```
+kubectl -n mongodb \
+  create secret generic global-programmatic-key \
+  --from-literal="<Public Key>" \
+  --from-literal="publicApiKey=<private key>"
+```
+#### 3.7、利用3.6步获取的Organization ID创建Kubernetes Configmap。
+```
+kubectl create configmap myconfigmap --from-literal="baseUrl=http://mongodb-ops-manager-svc.mongodb.svc.cluster.local:8080" --from-literal="projectName=mongodb-ops-manager-db" --from-literal="orgId=<org-id>"
+```
+#### 3.8、利用yaml文件创建MongoDB Standalone实例。
+```
+kubectl apply -f mongodb-standalone.yml
+```
+#### 3.9、观察Kubernete资源与MongoDB实例创建状态。
+```
+## 查看Kubernetes PVC创建
+kubectl get pvc |grep mongodb-standalone
+## 查看Kubernetes pod创建
+kubectl get pod |grep mongodb-standalone
+## 查看Kubernetes svc创建
+kubectl get svc |grep mongodb-standalone
+## 查看MongoDB状态
+kubectl get mongodb
+```
+#### 3.11、删除MongoDB Standalone实例。
+```
+kubectl delete -f mongodb-standalone.yml
+kubectl delete pvc data-mongodb-standalone-0 
+```
+### 步骤四、部署类型为Replicaset的MongoDB实例
+#### 4.1、创建MongoDB Replicaset集群
+```
+kubectl apply -f mongodb-replicaset.yml 
+```
+#### 4.2、查看Kubernetes资源创建状态与MongoDB部署状态
+```
+## 查看PVC部署状态
+kubectl get pvc |grep mongo-cluster
+## 查看pod部署状态
+kubectl get pod |grep mongo-cluster
+## 查看Kubernetes service部署状态
+kubectl get svc |grep mongo-cluster
+## 查看MongoDB集群部署状态
+kubectl get mongodb
+```
+#### 4.4、删除OpsManager集群
+```
+kubectl delete -f mongodb-replicaset.yml 
+kubectl delete pvc data-mongo-cluster-1-0    data-mongo-cluster-1-1   data-mongo-cluster-1-2
+```
+
+### 步骤五、部署类型为Sharded的MongoDB实例
+#### 5.1、创建MongoDB sharded集群。
+```
+kubectl apply -f mongodb-sharded.yml 
+```
+
+
